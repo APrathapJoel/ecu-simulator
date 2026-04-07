@@ -43,7 +43,7 @@ export function Sidebar() {
 
       <div className="p-4 border-t border-border">
         <div className="flex items-center gap-2 text-xs font-mono">
-          {isError || health?.status !== "ok" ? (
+          {isError || health?.status !== 200 ? (
             <>
               <ServerCrash className="w-4 h-4 text-destructive" />
               <span className="text-destructive uppercase">Server Offline</span>

@@ -25,6 +25,8 @@ export const connectToDatabase = async () => {
   }
 };
 
+export const isDatabaseConnected = () => mongoose.connection.readyState === 1;
+
 export * from "./schema/ecuReadings";
 export * from "./schema/dtcs";
 export * from "./schema/users";

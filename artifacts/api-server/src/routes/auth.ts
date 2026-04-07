@@ -1,37 +1,24 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { UserModel } from "@workspace/db";
+import { UserModel, isDatabaseConnected } from "@workspace/db";
 import { requestOtpBody, verifyOtpBody } from "@workspace/api-zod";
 import crypto from "crypto";
 import util from "util";
-import nodemailer from "nodemailer";
 
 const randomBytes = util.promisify(crypto.randomBytes);
 
 const router: IRouter = Router();
 
-// Nodemailer Singleton
-let testAccount: nodemailer.TestAccount | null = null;
-let transporter: nodemailer.Transporter | null = null;
-
-async function getTransporter() {
-  if (!transporter) {
-    if (process.env.NODE_ENV === "production" && process.env.SMTP_URL) {
-      transporter = nodemailer.createTransport(process.env.SMTP_URL);
-    } else {
-      testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: "smtp.ethereal.email",
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      });
-    }
-  }
-  return transporter;
+// IN-MEMORY FALLBACK FOR OFFLINE DEVELOPMENT
+interface MemUser {
+  _id: string;
+  email: string;
+  createdAt: Date;
+  otpCode?: string | null;
+  otpExpires?: Date | null;
+  sessionToken?: string | null;
 }
+const memUsers = new Map<string, MemUser>();
+let tempIdCounter = 1;
 
 // POST /auth/request-otp
 router.post("/auth/request-otp", async (req: Request, res: Response) => {
@@ -44,34 +31,32 @@ router.post("/auth/request-otp", async (req: Request, res: Response) => {
 
     const { email } = parsed.data;
 
-    let user = await UserModel.findOne({ email });
-    if (!user) {
-      user = new UserModel({ email });
-    }
-
-    // Generate 6 digit numeric code
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpCode = crypto.randomInt(100000, 999999).toString();
     const expires = new Date();
     expires.setMinutes(expires.getMinutes() + 10);
 
-    user.otpCode = otpCode;
-    user.otpExpires = expires;
-    await user.save();
+    if (!isDatabaseConnected()) {
+      let user = memUsers.get(email) || { _id: "mem_" + tempIdCounter++, email, createdAt: new Date() };
+      user.otpCode = otpCode;
+      user.otpExpires = expires;
+      memUsers.set(email, user);
+      if (user.sessionToken) memUsers.set(user.sessionToken, user);
+    } else {
+      let user = await UserModel.findOne({ email });
+      if (!user) {
+        user = new UserModel({ email });
+      }
+      user.otpCode = otpCode;
+      user.otpExpires = expires;
+      await user.save();
+    }
 
-    // Send Email
-    const mailer = await getTransporter();
-    const info = await mailer.sendMail({
-      from: '"ECU Diagnostics" <noreply@ecu-simulator.com>',
-      to: email,
-      subject: "Your ECU Simulator Access Code",
-      text: `Your login code is: ${otpCode}. It expires in 10 minutes.`,
-      html: `<b>Your login code is:</b> <h1>${otpCode}</h1><br><p>It expires in 10 minutes.</p>`,
-    });
+    // Instead of making outbound calls to Ethereal Mail (which fails on strict firewalls)
+    // We simply log the OTP code directly to your terminal for local development!
+    req.log.info({ email, otpCode }, "\n\n=================================\n>> YOUR SECURE OFFLINE ACCESS CODE: " + otpCode + "\n=================================\n");
 
-    req.log.info({ otpEmail: nodemailer.getTestMessageUrl(info) }, "MOCK EMAIL SENT URL");
-
-    res.status(200).json({ message: "OTP sent to your email. Check server logs for the URL if testing locally!" });
-  } catch (error: any) {
+    res.status(200).json({ message: "Check your terminal (where you ran pnpm run dev) for the 6-digit access code!" });
+  } catch (error: unknown) {
     req.log.error({ err: error }, "OTP Request error");
     res.status(500).json({ error: "Internal server error" });
   }
@@ -88,7 +73,13 @@ router.post("/auth/verify-otp", async (req: Request, res: Response) => {
 
     const { email, otpCode } = parsed.data;
 
-    const user = await UserModel.findOne({ email });
+    let user;
+    if (!isDatabaseConnected()) {
+      user = memUsers.get(email);
+    } else {
+      user = await UserModel.findOne({ email });
+    }
+
     if (!user) {
       res.status(401).json({ error: "Invalid email" });
       return;
@@ -99,12 +90,17 @@ router.post("/auth/verify-otp", async (req: Request, res: Response) => {
       return;
     }
 
-    // Clear OTP and grant session
     user.otpCode = null;
     user.otpExpires = null;
     const sessionToken = (await randomBytes(32)).toString("hex");
     user.sessionToken = sessionToken;
-    await user.save();
+
+    if (!isDatabaseConnected()) {
+      memUsers.set(email, user);
+      memUsers.set(sessionToken, user);
+    } else {
+      await user.save();
+    }
 
     res.cookie("sessionToken", sessionToken, {
       httpOnly: true,
@@ -118,7 +114,7 @@ router.post("/auth/verify-otp", async (req: Request, res: Response) => {
       email: user.email,
       createdAt: user.createdAt.toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     req.log.error({ err: error }, "Login error");
     res.status(500).json({ error: "Internal server error" });
   }
@@ -129,9 +125,20 @@ router.post("/auth/logout", async (req: Request, res: Response) => {
   try {
     const sessionToken = req.cookies.sessionToken;
     if (sessionToken) {
-      await UserModel.updateOne({ sessionToken }, { $set: { sessionToken: null } });
+      if (!isDatabaseConnected()) {
+        const u = memUsers.get(sessionToken);
+        if (u) {
+          if (u.email) memUsers.delete(u.email);
+          u.sessionToken = null;
+          memUsers.delete(sessionToken);
+        }
+      } else {
+        await UserModel.updateOne({ sessionToken }, { $set: { sessionToken: null } });
+      }
     }
-  } catch (e) {}
+  } catch (e) { 
+    req.log.error({ err: e }, "Log out error");
+  }
   res.clearCookie("sessionToken", { path: "/" });
   res.status(200).json({ status: "success" });
 });
@@ -145,7 +152,13 @@ router.get("/auth/me", async (req: Request, res: Response) => {
       return;
     }
 
-    const user = await UserModel.findOne({ sessionToken });
+    let user;
+    if (!isDatabaseConnected()) {
+      user = memUsers.get(sessionToken);
+    } else {
+      user = await UserModel.findOne({ sessionToken });
+    }
+
     if (!user) {
       res.status(401).json({ error: "Invalid session" });
       return;
@@ -156,7 +169,7 @@ router.get("/auth/me", async (req: Request, res: Response) => {
       email: user.email,
       createdAt: user.createdAt.toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     req.log.error({ err: error }, "Me error");
     res.status(500).json({ error: "Internal server error" });
   }

@@ -24,6 +24,9 @@ catalogs:
     '@vitejs/plugin-react':
       specifier: ^5.0.4
       version: 5.2.0
+    axios:
+      specifier: ^1.7.9
+      version: 1.14.0
     class-variance-authority:
       specifier: ^0.7.1
       version: 0.7.1
@@ -240,6 +243,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      axios:
+        specifier: 'catalog:'
+        version: 1.14.0
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
