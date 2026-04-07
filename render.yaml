@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: ecu-api-server
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run --filter @workspace/api-server build
+    startCommand: node artifacts/api-server/dist/index.mjs
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: NODE_ENV
+        value: production

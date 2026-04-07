@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/api-client-react",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "@tanstack/react-query": "catalog:",
+    "axios": "^1.7.9"
+  }
+}

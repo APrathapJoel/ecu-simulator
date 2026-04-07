@@ -1,0 +1,504 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: ECU Vehicle Monitoring API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: ecu
+    description: ECU data and simulation
+  - name: dtc
+    description: Diagnostic Trouble Codes
+  - name: history
+    description: Historical data
+  - name: auth
+    description: Authentication endpoints
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/request-otp:
+    post:
+      operationId: requestOtp
+      tags: [auth]
+      summary: Request an OTP to email (registers if new)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthEmail"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP and log in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthVerify"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized / Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Log out current user
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ecu/current:
+    get:
+      operationId: getCurrentEcuData
+      tags: [ecu]
+      summary: Get current ECU sensor data
+      description: Returns the latest simulated ECU sensor readings
+      responses:
+        "200":
+          description: Current ECU sensor data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcuReading"
+
+  /ecu/simulate:
+    post:
+      operationId: simulateEcuData
+      tags: [ecu]
+      summary: Simulate and record a new ECU reading
+      description: Generates a simulated ECU reading, runs fault detection, and stores result
+      responses:
+        "201":
+          description: New ECU reading created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcuReading"
+
+  /ecu/ingest:
+    post:
+      operationId: ingestEcuData
+      tags: [ecu]
+      summary: Ingest ECU data from ESP32 or external device
+      description: Accepts real sensor data from an ESP32 or other IoT device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EcuSensorInput"
+      responses:
+        "201":
+          description: ECU data ingested and stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcuReading"
+
+  /ecu/status:
+    get:
+      operationId: getVehicleStatus
+      tags: [ecu]
+      summary: Get overall vehicle health status summary
+      description: Returns aggregated vehicle health with fault counts and severity
+      responses:
+        "200":
+          description: Vehicle status summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleStatus"
+
+  /dtc:
+    get:
+      operationId: listDtcs
+      tags: [dtc]
+      summary: List all diagnostic trouble codes
+      description: Returns all active and historical DTCs
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Max records to return
+      responses:
+        "200":
+          description: List of DTCs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DiagnosticTroubleCode"
+
+  /dtc/{id}/resolve:
+    patch:
+      operationId: resolveDtc
+      tags: [dtc]
+      summary: Mark a DTC as resolved
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: DTC resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticTroubleCode"
+        "404":
+          description: DTC not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /history:
+    get:
+      operationId: getHistory
+      tags: [history]
+      summary: Get historical ECU readings
+      description: Returns paginated ECU readings history
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Number of records (default 50)
+        - name: offset
+          in: query
+          schema:
+            type: integer
+          description: Offset for pagination
+      responses:
+        "200":
+          description: Historical ECU readings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EcuReading"
+
+  /history/stats:
+    get:
+      operationId: getHistoryStats
+      tags: [history]
+      summary: Get aggregated stats from historical data
+      description: Returns min/max/avg for each sensor metric
+      responses:
+        "200":
+          description: Aggregated statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryStats"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    AuthEmail:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
+
+    AuthVerify:
+      type: object
+      properties:
+        email:
+          type: string
+        otpCode:
+          type: string
+      required:
+        - email
+        - otpCode
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - createdAt
+
+    EcuSensorInput:
+      type: object
+      properties:
+        speed:
+          type: number
+          description: Vehicle speed in km/h
+        rpm:
+          type: number
+          description: Engine RPM
+        engineTemp:
+          type: number
+          description: Engine temperature in Celsius
+        fuelLevel:
+          type: number
+          description: Fuel level percentage 0-100
+        batteryVoltage:
+          type: number
+          description: Battery voltage in volts
+        throttlePosition:
+          type: number
+          description: Throttle position percentage
+        coolantTemp:
+          type: number
+          description: Coolant temperature in Celsius
+        oilPressure:
+          type: number
+          description: Oil pressure in PSI
+      required:
+        - speed
+        - rpm
+        - engineTemp
+        - fuelLevel
+        - batteryVoltage
+
+    EcuReading:
+      type: object
+      properties:
+        id:
+          type: string
+        speed:
+          type: number
+        rpm:
+          type: number
+        engineTemp:
+          type: number
+        fuelLevel:
+          type: number
+        batteryVoltage:
+          type: number
+        throttlePosition:
+          type: number
+        coolantTemp:
+          type: number
+        oilPressure:
+          type: number
+        hasFault:
+          type: boolean
+        source:
+          type: string
+          description: "simulation or esp32 or external"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - speed
+        - rpm
+        - engineTemp
+        - fuelLevel
+        - batteryVoltage
+        - throttlePosition
+        - coolantTemp
+        - oilPressure
+        - hasFault
+        - source
+        - createdAt
+
+    DiagnosticTroubleCode:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+          description: DTC code e.g. P0101
+        description:
+          type: string
+        severity:
+          type: string
+          description: "critical, warning, info"
+        system:
+          type: string
+          description: "engine, fuel, electrical, cooling, transmission"
+        isActive:
+          type: boolean
+        detectedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ecuReadingId:
+          type: string
+          nullable: true
+      required:
+        - id
+        - code
+        - description
+        - severity
+        - system
+        - isActive
+        - detectedAt
+        - resolvedAt
+        - ecuReadingId
+
+    VehicleStatus:
+      type: object
+      properties:
+        overallHealth:
+          type: string
+          description: "healthy, warning, critical"
+        activeFaultCount:
+          type: integer
+        criticalFaultCount:
+          type: integer
+        warningFaultCount:
+          type: integer
+        totalReadings:
+          type: integer
+        lastReadingAt:
+          type: string
+          format: date-time
+          nullable: true
+        latestReading:
+          $ref: "#/components/schemas/EcuReading"
+      required:
+        - overallHealth
+        - activeFaultCount
+        - criticalFaultCount
+        - warningFaultCount
+        - totalReadings
+        - lastReadingAt
+        - latestReading
+
+    HistoryStats:
+      type: object
+      properties:
+        speed:
+          $ref: "#/components/schemas/MetricStats"
+        rpm:
+          $ref: "#/components/schemas/MetricStats"
+        engineTemp:
+          $ref: "#/components/schemas/MetricStats"
+        fuelLevel:
+          $ref: "#/components/schemas/MetricStats"
+        batteryVoltage:
+          $ref: "#/components/schemas/MetricStats"
+      required:
+        - speed
+        - rpm
+        - engineTemp
+        - fuelLevel
+        - batteryVoltage
+
+    MetricStats:
+      type: object
+      properties:
+        min:
+          type: number
+        max:
+          type: number
+        avg:
+          type: number
+        current:
+          type: number
+      required:
+        - min
+        - max
+        - avg
+        - current
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
