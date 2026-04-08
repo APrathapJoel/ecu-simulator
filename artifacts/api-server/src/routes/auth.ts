@@ -1,8 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { UserModel, isDatabaseConnected } from "@workspace/db";
-import { requestOtpBody, verifyOtpBody } from "@workspace/api-zod";
+import { registerBody, loginBody } from "@workspace/api-zod";
 import crypto from "crypto";
 import util from "util";
+import bcrypt from "bcryptjs";
 
 const randomBytes = util.promisify(crypto.randomBytes);
 
@@ -20,58 +21,52 @@ interface MemUser {
 const memUsers = new Map<string, MemUser>();
 let tempIdCounter = 1;
 
-// POST /auth/request-otp
-router.post("/auth/request-otp", async (req: Request, res: Response) => {
+// POST /auth/register
+router.post("/auth/register", async (req: Request, res: Response) => {
   try {
-    const parsed = requestOtpBody.safeParse(req.body);
+    const parsed = registerBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;
     }
 
-    const { email } = parsed.data;
-
-    const otpCode = crypto.randomInt(100000, 999999).toString();
-    const expires = new Date();
-    expires.setMinutes(expires.getMinutes() + 10);
+    const { email, password } = parsed.data;
+    const passwordHash = await bcrypt.hash(password, 10);
 
     if (!isDatabaseConnected()) {
-      let user = memUsers.get(email) || { _id: "mem_" + tempIdCounter++, email, createdAt: new Date() };
-      user.otpCode = otpCode;
-      user.otpExpires = expires;
+      if (memUsers.has(email)) {
+        res.status(409).json({ error: "User already exists" });
+        return;
+      }
+      let user = { _id: "mem_" + tempIdCounter++, email, passwordHash, createdAt: new Date() };
       memUsers.set(email, user);
-      if (user.sessionToken) memUsers.set(user.sessionToken, user);
     } else {
       let user = await UserModel.findOne({ email });
-      if (!user) {
-        user = new UserModel({ email });
+      if (user) {
+        res.status(409).json({ error: "User already exists" });
+        return;
       }
-      user.otpCode = otpCode;
-      user.otpExpires = expires;
+      user = new UserModel({ email, passwordHash });
       await user.save();
     }
 
-    // Instead of making outbound calls to Ethereal Mail (which fails on strict firewalls)
-    // We simply log the OTP code directly to your terminal for local development!
-    req.log.info({ email, otpCode }, "\n\n=================================\n>> YOUR SECURE OFFLINE ACCESS CODE: " + otpCode + "\n=================================\n");
-
-    res.status(200).json({ message: "Check your terminal (where you ran pnpm run dev) for the 6-digit access code!" });
+    res.status(200).json({ message: "Registration successful. You may now log in." });
   } catch (error: unknown) {
-    req.log.error({ err: error }, "OTP Request error");
+    req.log.error({ err: error }, "Registration error");
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// POST /auth/verify-otp
-router.post("/auth/verify-otp", async (req: Request, res: Response) => {
+// POST /auth/login
+router.post("/auth/login", async (req: Request, res: Response) => {
   try {
-    const parsed = verifyOtpBody.safeParse(req.body);
+    const parsed = loginBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;
     }
 
-    const { email, otpCode } = parsed.data;
+    const { email, password } = parsed.data;
 
     let user;
     if (!isDatabaseConnected()) {
@@ -81,17 +76,16 @@ router.post("/auth/verify-otp", async (req: Request, res: Response) => {
     }
 
     if (!user) {
-      res.status(401).json({ error: "Invalid email" });
+      res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 
-    if (!user.otpCode || user.otpCode !== otpCode || !user.otpExpires || user.otpExpires < new Date()) {
-      res.status(401).json({ error: "Invalid or expired OTP" });
+    const isMatch = await bcrypt.compare(password, user.passwordHash as string);
+    if (!isMatch) {
+      res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 
-    user.otpCode = null;
-    user.otpExpires = null;
     const sessionToken = (await randomBytes(32)).toString("hex");
     user.sessionToken = sessionToken;
 

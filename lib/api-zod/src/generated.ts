@@ -18,26 +18,27 @@ export const healthCheckResponse = zod.object({
 
 
 /**
- * @summary Request an OTP to email (registers if new)
+ * @summary Register a new system operator
  */
-export const requestOtpBody = zod.object({
-  "email": zod.string()
+export const registerBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string()
 })
 
-export const requestOtpResponse = zod.object({
+export const registerResponse = zod.object({
   "message": zod.string().optional()
 })
 
 
 /**
- * @summary Verify OTP and log in
+ * @summary Sign in via email and password
  */
-export const verifyOtpBody = zod.object({
+export const loginBody = zod.object({
   "email": zod.string(),
-  "otpCode": zod.string()
+  "password": zod.string()
 })
 
-export const verifyOtpResponse = zod.object({
+export const loginResponse = zod.object({
   "id": zod.string(),
   "email": zod.string(),
   "createdAt": zod.string().datetime({})

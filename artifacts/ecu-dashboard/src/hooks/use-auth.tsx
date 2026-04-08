@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetMe, useRequestOtp, useVerifyOtp, useLogout } from "@workspace/api-client-react";
+import { useGetMe, useRegister, useLogin, useLogout } from "@workspace/api-client-react";
 import type { User } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -8,8 +8,8 @@ type AuthContextType = {
   user: User | null;
   isLoading: boolean;
   error: Error | null;
-  requestOtpMutation: ReturnType<typeof useRequestOtp>;
-  verifyOtpMutation: ReturnType<typeof useVerifyOtp>;
+  requestRegisterMutation: ReturnType<typeof useRegister>;
+  loginMutation: ReturnType<typeof useLogin>;
   logoutMutation: ReturnType<typeof useLogout>;
 };
 
@@ -21,17 +21,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const { data: user, isLoading, error } = useGetMe();
 
-  const requestOtpMutation = useRequestOtp({
+  const requestRegisterMutation = useRegister({
     mutation: {
       onSuccess: (data) => {
         toast({
-          title: "OTP Sent",
-          description: data.data.message || "Please check your email for the code.",
+          title: "Registration successful",
+          description: data.data.message || "You can now log in.",
         });
       },
       onError: (error: any) => {
         toast({
-          title: "Request failed",
+          title: "Registration failed",
           description: error.response?.data?.error || "Could not process request",
           variant: "destructive",
         });
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const verifyOtpMutation = useVerifyOtp({
+  const loginMutation = useLogin({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["getMe"] });
@@ -50,8 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       onError: (error: any) => {
         toast({
-          title: "Verification failed",
-          description: error.response?.data?.error || "Invalid or expired OTP",
+          title: "Login failed",
+          description: error.response?.data?.error || "Invalid credentials",
           variant: "destructive",
         });
       },
@@ -72,8 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: user?.data || null,
         isLoading,
         error: error as Error | null,
-        requestOtpMutation,
-        verifyOtpMutation,
+        requestRegisterMutation,
+        loginMutation,
         logoutMutation,
       }}
     >

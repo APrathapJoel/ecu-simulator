@@ -27,8 +27,7 @@ import type {
 } from 'axios';
 
 import type {
-  AuthEmail,
-  AuthVerify,
+  AuthCredentials,
   DiagnosticTroubleCode,
   EcuReading,
   EcuSensorInput,
@@ -37,7 +36,7 @@ import type {
   HealthStatus,
   HistoryStats,
   ListDtcsParams,
-  RequestOtp200,
+  Register200,
   User,
   VehicleStatus
 } from './generated.schemas';
@@ -119,26 +118,26 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 /**
- * @summary Request an OTP to email (registers if new)
+ * @summary Register a new system operator
  */
-export const requestOtp = (
-    authEmail: AuthEmail, options?: AxiosRequestConfig
- ): Promise<AxiosResponse<RequestOtp200>> => {
+export const register = (
+    authCredentials: AuthCredentials, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<Register200>> => {
     
     
     return axios.default.post(
-      `/auth/request-otp`,
-      authEmail,options
+      `/auth/register`,
+      authCredentials,options
     );
   }
 
 
 
-export const getRequestOtpMutationOptions = <TError = AxiosError<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: AuthEmail}, TContext>, axios?: AxiosRequestConfig}
-): UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: AuthEmail}, TContext> => {
+export const getRegisterMutationOptions = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: AuthCredentials}, TContext>, axios?: AxiosRequestConfig}
+): UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: AuthCredentials}, TContext> => {
 
-const mutationKey = ['requestOtp'];
+const mutationKey = ['register'];
 const {mutation: mutationOptions, axios: axiosOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -148,10 +147,10 @@ const {mutation: mutationOptions, axios: axiosOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestOtp>>, {data: AuthEmail}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof register>>, {data: AuthCredentials}> = (props) => {
           const {data} = props ?? {};
 
-          return  requestOtp(data,axiosOptions)
+          return  register(data,axiosOptions)
         }
 
         
@@ -159,48 +158,48 @@ const {mutation: mutationOptions, axios: axiosOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type RequestOtpMutationResult = NonNullable<Awaited<ReturnType<typeof requestOtp>>>
-    export type RequestOtpMutationBody = AuthEmail
-    export type RequestOtpMutationError = AxiosError<ErrorResponse>
+    export type RegisterMutationResult = NonNullable<Awaited<ReturnType<typeof register>>>
+    export type RegisterMutationBody = AuthCredentials
+    export type RegisterMutationError = AxiosError<ErrorResponse>
 
     /**
- * @summary Request an OTP to email (registers if new)
+ * @summary Register a new system operator
  */
-export const useRequestOtp = <TError = AxiosError<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: AuthEmail}, TContext>, axios?: AxiosRequestConfig}
+export const useRegister = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: AuthCredentials}, TContext>, axios?: AxiosRequestConfig}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof requestOtp>>,
+        Awaited<ReturnType<typeof register>>,
         TError,
-        {data: AuthEmail},
+        {data: AuthCredentials},
         TContext
       > => {
 
-      const mutationOptions = getRequestOtpMutationOptions(options);
+      const mutationOptions = getRegisterMutationOptions(options);
 
       return useMutation(mutationOptions);
     }
     
 /**
- * @summary Verify OTP and log in
+ * @summary Sign in via email and password
  */
-export const verifyOtp = (
-    authVerify: AuthVerify, options?: AxiosRequestConfig
+export const login = (
+    authCredentials: AuthCredentials, options?: AxiosRequestConfig
  ): Promise<AxiosResponse<User>> => {
     
     
     return axios.default.post(
-      `/auth/verify-otp`,
-      authVerify,options
+      `/auth/login`,
+      authCredentials,options
     );
   }
 
 
 
-export const getVerifyOtpMutationOptions = <TError = AxiosError<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: AuthVerify}, TContext>, axios?: AxiosRequestConfig}
-): UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: AuthVerify}, TContext> => {
+export const getLoginMutationOptions = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: AuthCredentials}, TContext>, axios?: AxiosRequestConfig}
+): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: AuthCredentials}, TContext> => {
 
-const mutationKey = ['verifyOtp'];
+const mutationKey = ['login'];
 const {mutation: mutationOptions, axios: axiosOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -210,10 +209,10 @@ const {mutation: mutationOptions, axios: axiosOptions} = options ?
       
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyOtp>>, {data: AuthVerify}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof login>>, {data: AuthCredentials}> = (props) => {
           const {data} = props ?? {};
 
-          return  verifyOtp(data,axiosOptions)
+          return  login(data,axiosOptions)
         }
 
         
@@ -221,23 +220,23 @@ const {mutation: mutationOptions, axios: axiosOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type VerifyOtpMutationResult = NonNullable<Awaited<ReturnType<typeof verifyOtp>>>
-    export type VerifyOtpMutationBody = AuthVerify
-    export type VerifyOtpMutationError = AxiosError<ErrorResponse>
+    export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
+    export type LoginMutationBody = AuthCredentials
+    export type LoginMutationError = AxiosError<ErrorResponse>
 
     /**
- * @summary Verify OTP and log in
+ * @summary Sign in via email and password
  */
-export const useVerifyOtp = <TError = AxiosError<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: AuthVerify}, TContext>, axios?: AxiosRequestConfig}
+export const useLogin = <TError = AxiosError<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: AuthCredentials}, TContext>, axios?: AxiosRequestConfig}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof verifyOtp>>,
+        Awaited<ReturnType<typeof login>>,
         TError,
-        {data: AuthVerify},
+        {data: AuthCredentials},
         TContext
       > => {
 
-      const mutationOptions = getVerifyOtpMutationOptions(options);
+      const mutationOptions = getLoginMutationOptions(options);
 
       return useMutation(mutationOptions);
     }

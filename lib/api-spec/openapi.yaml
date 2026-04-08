@@ -33,17 +33,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
-  /auth/request-otp:
+  /auth/register:
     post:
-      operationId: requestOtp
+      operationId: register
       tags: [auth]
-      summary: Request an OTP to email (registers if new)
+      summary: Register a new system operator
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AuthEmail"
+              $ref: "#/components/schemas/AuthCredentials"
       responses:
         "200":
           description: OTP sent
@@ -61,17 +61,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /auth/verify-otp:
+  /auth/login:
     post:
-      operationId: verifyOtp
+      operationId: login
       tags: [auth]
-      summary: Verify OTP and log in
+      summary: Sign in via email and password
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AuthVerify"
+              $ref: "#/components/schemas/AuthCredentials"
       responses:
         "200":
           description: Success
@@ -80,7 +80,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "401":
-          description: Unauthorized / Invalid OTP
+          description: Unauthorized / Invalid Credentials
           content:
             application/json:
               schema:
@@ -279,24 +279,16 @@ components:
       required:
         - status
 
-    AuthEmail:
+    AuthCredentials:
       type: object
       properties:
         email:
           type: string
-      required:
-        - email
-
-    AuthVerify:
-      type: object
-      properties:
-        email:
-          type: string
-        otpCode:
+        password:
           type: string
       required:
         - email
-        - otpCode
+        - password
 
     User:
       type: object

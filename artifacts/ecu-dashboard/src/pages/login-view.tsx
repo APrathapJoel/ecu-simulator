@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,29 +8,30 @@ import { Label } from "@/components/ui/label";
 import { Shield, Mail, KeyRound } from "lucide-react";
 
 export default function LoginView() {
-  const { requestOtpMutation, verifyOtpMutation } = useAuth();
+  const { requestRegisterMutation, loginMutation, user } = useAuth();
+  const [, setLocation] = useLocation();
   
-  // Step 1: Request OTP
   const [email, setEmail] = useState("");
-  // Step 2: Verify OTP
-  const [otpCode, setOtpCode] = useState("");
-  const [step, setStep] = useState<"request" | "verify">("request");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
 
-  const handleRequestOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    requestOtpMutation.mutate(
-      { data: { email } },
-      {
-        onSuccess: () => {
-          setStep("verify");
-        }
-      }
-    );
-  };
+  // Automatically push user into the dashboard ecosystem if they log in successfully
+  useEffect(() => {
+    if (user) {
+      setLocation("/driver");
+    }
+  }, [user, setLocation]);
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    verifyOtpMutation.mutate({ data: { email, otpCode } });
+    if (mode === "register") {
+      requestRegisterMutation.mutate(
+        { data: { email, password } },
+        { onSuccess: () => setMode("login") }
+      );
+    } else {
+      loginMutation.mutate({ data: { email, password } });
+    }
   };
 
   return (
@@ -47,103 +49,71 @@ export default function LoginView() {
             Secure Uplink
           </CardTitle>
           <CardDescription className="text-center text-muted-foreground/80">
-            {step === "request" 
-              ? "Enter your work email to receive a temporary access code."
-              : "Enter the 6-digit access code sent to your email."}
+            {mode === "register" 
+              ? "Register a new operator profile."
+              : "Enter your operator credentials to access the dashboard."}
           </CardDescription>
         </CardHeader>
         
-        {step === "request" && (
-          <form onSubmit={handleRequestOtp}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2 relative">
-                <Label htmlFor="email" className="text-white/70">Operator Email</Label>
-                <div className="relative relative-group">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
-                  <Input
-                    id="email"
-                    type="email"
-                    name="email"
-                    autoComplete="email"
-                    className="bg-black/40 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-primary/50 pl-10"
-                    placeholder="operator@ecu-network.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            <div className="space-y-2 relative">
+              <Label htmlFor="email" className="text-white/70">Operator Email</Label>
+              <div className="relative group">
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                <Input
+                  id="email"
+                  type="email"
+                  className="bg-black/40 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-primary/50 pl-10"
+                  placeholder="operator@ecu-network.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-4 pt-4">
-              <Button 
-                type="submit" 
-                className="w-full relative overflow-hidden group hover:scale-[1.02] transition-transform"
-                disabled={requestOtpMutation.isPending}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/40 group-hover:opacity-100 opacity-80 transition-opacity" />
-                <span className="relative z-10 flex items-center justify-center font-semibold">
-                  {requestOtpMutation.isPending ? (
-                    <span className="animate-pulse">Transmitting...</span>
-                  ) : (
-                    "Request Access Code"
-                  )}
-                </span>
-              </Button>
-            </CardFooter>
-          </form>
-        )}
+            </div>
 
-        {step === "verify" && (
-          <form onSubmit={handleVerifyOtp}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="otp" className="text-white/70">Access Code</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
-                  <Input
-                    id="otp"
-                    type="text"
-                    name="otp"
-                    className="bg-black/40 font-mono tracking-widest text-center border-white/10 text-white placeholder:text-white/20 focus-visible:ring-primary/50 text-lg py-6"
-                    placeholder="000000"
-                    maxLength={6}
-                    pattern="\\d{6}"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    required
-                  />
-                </div>
+            <div className="space-y-2 relative">
+              <Label htmlFor="password" className="text-white/70">Secure Password</Label>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                <Input
+                  id="password"
+                  type="password"
+                  className="bg-black/40 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-primary/50 pl-10"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
-            </CardContent>
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col space-y-4 pt-4">
+            <Button 
+              type="submit" 
+              className="w-full relative overflow-hidden group hover:scale-[1.02] transition-transform"
+              disabled={requestRegisterMutation.isPending || loginMutation.isPending}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/40 group-hover:opacity-100 opacity-80 transition-opacity" />
+              <span className="relative z-10 flex items-center justify-center font-semibold">
+                {requestRegisterMutation.isPending || loginMutation.isPending ? (
+                  <span className="animate-pulse">Processing...</span>
+                ) : mode === "login" ? "Sign In" : "Register"}
+              </span>
+            </Button>
             
-            <CardFooter className="flex flex-col space-y-4 pt-4">
-              <Button 
-                type="submit" 
-                className="w-full relative overflow-hidden group hover:scale-[1.02] transition-transform"
-                disabled={verifyOtpMutation.isPending}
+            <div className="text-sm text-center">
+              <button
+                type="button"
+                onClick={() => setMode(mode === "login" ? "register" : "login")}
+                className="text-primary/70 hover:underline hover:text-primary focus:outline-none"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/40 group-hover:opacity-100 opacity-80 transition-opacity" />
-                <span className="relative z-10 flex items-center justify-center font-semibold">
-                  {verifyOtpMutation.isPending ? (
-                    <span className="animate-pulse">Verifying...</span>
-                  ) : (
-                    "Verify Uplink"
-                  )}
-                </span>
-              </Button>
-              
-              <div className="text-sm text-center">
-                <button
-                  type="button"
-                  onClick={() => setStep("request")}
-                  className="text-primary/70 hover:underline hover:text-primary focus:outline-none"
-                >
-                  Return to email entry
-                </button>
-              </div>
-            </CardFooter>
-          </form>
-        )}
+                {mode === "login" ? "Need an account? Register here." : "Already have an account? Sign in."}
+              </button>
+            </div>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   );

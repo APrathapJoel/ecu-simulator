@@ -89,51 +89,125 @@ const DTC_DEFINITIONS: Record<
   },
 };
 
-function randomBetween(min: number, max: number): number {
-  return Math.round((Math.random() * (max - min) + min) * 10) / 10;
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomFloat(min: number, max: number, decimals: number = 1): number {
+  const val = Math.random() * (max - min) + min;
+  return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
 }
 
 export function generateSimulatedSensorData() {
-  const scenario = Math.random();
+  // Pick a realistic driving scenario with weighted probability
+  const roll = Math.random();
 
-  if (scenario < 0.15) {
-    // Fault scenario
+  if (roll < 0.10) {
+    // --- SCENARIO: Engine Idle (parked / traffic stop) ---
+    const rpm = randomInt(700, 950);
+    const engineTemp = randomInt(82, 90);
     return {
-      speed: randomBetween(100, 180),
-      rpm: randomBetween(5500, 7500),
-      engineTemp: randomBetween(105, 125),
-      fuelLevel: randomBetween(2, 12),
-      batteryVoltage: randomBetween(10.0, 11.4),
-      throttlePosition: randomBetween(70, 100),
-      coolantTemp: randomBetween(105, 120),
-      oilPressure: randomBetween(5, 18),
+      speed: 0,
+      rpm,
+      engineTemp,
+      fuelLevel: randomInt(30, 95),
+      batteryVoltage: randomFloat(13.8, 14.2),
+      throttlePosition: randomInt(0, 5),
+      coolantTemp: randomInt(80, 88),
+      oilPressure: randomInt(20, 30), // oil pressure is low at idle - realistic
     };
-  } else if (scenario < 0.30) {
-    // Warning scenario
+  } else if (roll < 0.30) {
+    // --- SCENARIO: City Driving (stop-start, low speeds) ---
+    const speed = randomInt(15, 60);
+    const rpm = randomInt(1200, 2800);
+    const engineTemp = randomInt(85, 95);
     return {
-      speed: randomBetween(110, 130),
-      rpm: randomBetween(4800, 5200),
-      engineTemp: randomBetween(98, 108),
-      fuelLevel: randomBetween(8, 18),
-      batteryVoltage: randomBetween(11.3, 11.8),
-      throttlePosition: randomBetween(50, 75),
-      coolantTemp: randomBetween(97, 108),
-      oilPressure: randomBetween(18, 28),
+      speed,
+      rpm,
+      engineTemp,
+      fuelLevel: randomInt(20, 90),
+      batteryVoltage: randomFloat(13.9, 14.4),
+      throttlePosition: randomInt(10, 35),
+      coolantTemp: randomInt(83, 93),
+      oilPressure: randomInt(30, 50),
+    };
+  } else if (roll < 0.55) {
+    // --- SCENARIO: Highway Cruising (steady 80-120 km/h) ---
+    const speed = randomInt(80, 120);
+    // RPM correlates with speed: ~80 km/h = ~2200 RPM in a typical car
+    const rpm = randomInt(2000, 3200);
+    const engineTemp = randomInt(88, 96);
+    return {
+      speed,
+      rpm,
+      engineTemp,
+      fuelLevel: randomInt(25, 85),
+      batteryVoltage: randomFloat(14.0, 14.5),
+      throttlePosition: randomInt(25, 45),
+      coolantTemp: randomInt(86, 94),
+      oilPressure: randomInt(45, 65),
+    };
+  } else if (roll < 0.70) {
+    // --- SCENARIO: Hard Acceleration (overtaking / on-ramp) ---
+    const speed = randomInt(60, 160);
+    const rpm = randomInt(3500, 5500);
+    const engineTemp = randomInt(92, 102);
+    return {
+      speed,
+      rpm,
+      engineTemp,
+      fuelLevel: randomInt(20, 70),
+      batteryVoltage: randomFloat(13.5, 14.2),
+      throttlePosition: randomInt(70, 100),
+      coolantTemp: randomInt(90, 100),
+      oilPressure: randomInt(55, 75),
+    };
+  } else if (roll < 0.82) {
+    // --- SCENARIO: Motorway / High Speed (120-160 km/h) ---
+    const speed = randomInt(120, 160);
+    const rpm = randomInt(3200, 4500);
+    const engineTemp = randomInt(94, 103);
+    return {
+      speed,
+      rpm,
+      engineTemp,
+      fuelLevel: randomInt(15, 65),
+      batteryVoltage: randomFloat(14.0, 14.5),
+      throttlePosition: randomInt(45, 75),
+      coolantTemp: randomInt(92, 102),
+      oilPressure: randomInt(50, 70),
+    };
+  } else if (roll < 0.91) {
+    // --- SCENARIO: Warning State (overheating / low fuel) ---
+    const rpm = randomInt(4800, 5500);
+    const engineTemp = randomInt(100, 110);
+    return {
+      speed: randomInt(90, 140),
+      rpm,
+      engineTemp,
+      fuelLevel: randomInt(5, 15),
+      batteryVoltage: randomFloat(11.2, 11.9),
+      throttlePosition: randomInt(50, 80),
+      coolantTemp: randomInt(100, 112),
+      oilPressure: randomInt(18, 28),
     };
   } else {
-    // Normal operation
+    // --- SCENARIO: Critical Fault (red line / overtemp / no oil) ---
+    const rpm = randomInt(6000, 7200);
+    const engineTemp = randomInt(112, 130);
     return {
-      speed: randomBetween(30, 110),
-      rpm: randomBetween(800, 4500),
-      engineTemp: randomBetween(75, 95),
-      fuelLevel: randomBetween(20, 100),
-      batteryVoltage: randomBetween(12.0, 14.8),
-      throttlePosition: randomBetween(5, 50),
-      coolantTemp: randomBetween(75, 95),
-      oilPressure: randomBetween(30, 60),
+      speed: randomInt(100, 180),
+      rpm,
+      engineTemp,
+      fuelLevel: randomInt(1, 8),
+      batteryVoltage: randomFloat(9.8, 11.0),
+      throttlePosition: randomInt(80, 100),
+      coolantTemp: randomInt(110, 128),
+      oilPressure: randomInt(4, 16),
     };
   }
 }
+
 
 export function detectFaults(data: {
   speed: number;

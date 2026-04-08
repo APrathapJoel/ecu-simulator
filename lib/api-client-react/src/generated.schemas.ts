@@ -9,13 +9,9 @@ export interface HealthStatus {
   status: string;
 }
 
-export interface AuthEmail {
+export interface AuthCredentials {
   email: string;
-}
-
-export interface AuthVerify {
-  email: string;
-  otpCode: string;
+  password: string;
 }
 
 export interface User {
@@ -107,7 +103,7 @@ export interface ErrorResponse {
   error: string;
 }
 
-export type RequestOtp200 = {
+export type Register200 = {
   message?: string;
 };
 

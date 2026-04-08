@@ -17,14 +17,23 @@ import { isDatabaseConnected } from "@workspace/db";
 
 const router: IRouter = Router();
 
+let memLatestReading: any = null;
+
+function getMemReading() {
+  if (!memLatestReading) {
+    memLatestReading = {
+      id: "mock_" + Date.now(), speed: 50, rpm: 2000, engineTemp: 90, fuelLevel: 75,
+      batteryVoltage: 13.8, throttlePosition: 30, coolantTemp: 85, oilPressure: 45,
+      hasFault: false, source: "simulation", createdAt: new Date().toISOString()
+    };
+  }
+  return memLatestReading;
+}
+
 // GET /ecu/current - Get latest ECU reading
 router.get("/ecu/current", async (req, res): Promise<void> => {
   if (!isDatabaseConnected()) {
-    res.json({
-      id: "mock_1", speed: 50, rpm: 2000, engineTemp: 90, fuelLevel: 75,
-      batteryVoltage: 13.8, throttlePosition: 30, coolantTemp: 85, oilPressure: 45,
-      hasFault: false, source: "simulation", createdAt: new Date().toISOString()
-    });
+    res.json(getMemReading());
     return;
   }
 
@@ -43,11 +52,15 @@ router.get("/ecu/current", async (req, res): Promise<void> => {
 // POST /ecu/simulate - Generate and store simulated ECU data
 router.post("/ecu/simulate", async (req, res): Promise<void> => {
   if (!isDatabaseConnected()) {
-    res.status(201).json({
-      id: "mock_" + Date.now(), speed: 55, rpm: 2100, engineTemp: 92, fuelLevel: 74,
-      batteryVoltage: 13.7, throttlePosition: 32, coolantTemp: 86, oilPressure: 46,
-      hasFault: false, source: "simulation", createdAt: new Date().toISOString()
-    });
+    const raw = generateSimulatedSensorData();
+    memLatestReading = {
+      id: "mock_" + Date.now(),
+      ...raw,
+      hasFault: Math.random() > 0.8,
+      source: "simulation",
+      createdAt: new Date().toISOString()
+    };
+    res.status(201).json(memLatestReading);
     return;
   }
 
@@ -82,14 +95,15 @@ router.post("/ecu/ingest", async (req, res): Promise<void> => {
 // GET /ecu/status - Vehicle status summary
 router.get("/ecu/status", async (req, res): Promise<void> => {
   if (!isDatabaseConnected()) {
+    const current = getMemReading();
     res.json({
-      overallHealth: "healthy", activeFaultCount: 0, criticalFaultCount: 0, warningFaultCount: 0, totalReadings: 5,
-      lastReadingAt: new Date().toISOString(),
-      latestReading: {
-        id: "mock_1", speed: 50, rpm: 2000, engineTemp: 90, fuelLevel: 75,
-        batteryVoltage: 13.8, throttlePosition: 30, coolantTemp: 85, oilPressure: 45,
-        hasFault: false, source: "simulation", createdAt: new Date().toISOString()
-      }
+      overallHealth: current.hasFault ? "warning" : "healthy", 
+      activeFaultCount: current.hasFault ? 1 : 0, 
+      criticalFaultCount: 0, 
+      warningFaultCount: current.hasFault ? 1 : 0, 
+      totalReadings: 5,
+      lastReadingAt: current.createdAt,
+      latestReading: current
     });
     return;
   }
