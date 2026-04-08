@@ -38,6 +38,7 @@ import type {
   ListDtcsParams,
   Register200,
   User,
+  VehicleLocation,
   VehicleStatus
 } from './generated.schemas';
 
@@ -887,6 +888,74 @@ export function useGetHistoryStats<TData = Awaited<ReturnType<typeof getHistoryS
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetHistoryStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+
+/**
+ * Returns current position, heading, speed and last 50 GPS trail points
+ * @summary Get current vehicle GPS location and trail
+ */
+export const getVehicleLocation = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<VehicleLocation>> => {
+    
+    
+    return axios.default.get(
+      `/ecu/location`,options
+    );
+  }
+
+
+
+
+export const getGetVehicleLocationQueryKey = () => {
+    return [
+    `/ecu/location`
+    ] as const;
+    }
+
+    
+export const getGetVehicleLocationQueryOptions = <TData = Awaited<ReturnType<typeof getVehicleLocation>>, TError = AxiosError<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVehicleLocation>>, TError, TData>, axios?: AxiosRequestConfig}
+) => {
+
+const {query: queryOptions, axios: axiosOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVehicleLocationQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVehicleLocation>>> = ({ signal }) => getVehicleLocation({ signal, ...axiosOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVehicleLocation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVehicleLocationQueryResult = NonNullable<Awaited<ReturnType<typeof getVehicleLocation>>>
+export type GetVehicleLocationQueryError = AxiosError<unknown>
+
+
+/**
+ * @summary Get current vehicle GPS location and trail
+ */
+
+export function useGetVehicleLocation<TData = Awaited<ReturnType<typeof getVehicleLocation>>, TError = AxiosError<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVehicleLocation>>, TError, TData>, axios?: AxiosRequestConfig}
+  
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVehicleLocationQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -52,6 +52,15 @@ export interface EcuReading {
   hasFault: boolean;
   /** simulation or esp32 or external */
   source: string;
+  /** @nullable */
+  latitude?: number | null;
+  /** @nullable */
+  longitude?: number | null;
+  /**
+   * Compass heading in degrees 0-360
+   * @nullable
+   */
+  heading?: number | null;
   createdAt: string;
 }
 
@@ -97,6 +106,26 @@ export interface MetricStats {
   max: number;
   avg: number;
   current: number;
+}
+
+export type VehicleLocationCurrent = {
+  latitude: number;
+  longitude: number;
+  heading: number;
+  speed: number;
+  updatedAt: string;
+};
+
+export type VehicleLocationTrailItem = {
+  latitude: number;
+  longitude: number;
+  speed: number;
+  createdAt: string;
+};
+
+export interface VehicleLocation {
+  current: VehicleLocationCurrent;
+  trail: VehicleLocationTrailItem[];
 }
 
 export interface ErrorResponse {

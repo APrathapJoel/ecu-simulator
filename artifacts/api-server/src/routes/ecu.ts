@@ -12,6 +12,8 @@ import {
   getLatestReading,
   serializeReading,
   serializeDtc,
+  recordGpsTrail,
+  getGpsState,
 } from "../lib/ecuSimulator";
 import { isDatabaseConnected } from "@workspace/db";
 
@@ -53,9 +55,11 @@ router.get("/ecu/current", async (req, res): Promise<void> => {
 router.post("/ecu/simulate", async (req, res): Promise<void> => {
   if (!isDatabaseConnected()) {
     const raw = generateSimulatedSensorData();
+    const gps = recordGpsTrail(raw.speed);
     memLatestReading = {
       id: "mock_" + Date.now(),
       ...raw,
+      ...gps,
       hasFault: Math.random() > 0.8,
       source: "simulation",
       createdAt: new Date().toISOString()
@@ -65,9 +69,15 @@ router.post("/ecu/simulate", async (req, res): Promise<void> => {
   }
 
   const sensorData = generateSimulatedSensorData();
-  const reading = await saveEcuReadingWithFaults(sensorData, "simulation");
+  const gps = recordGpsTrail(sensorData.speed);
+  const reading = await saveEcuReadingWithFaults({ ...sensorData, ...gps }, "simulation");
   req.log.info({ readingId: reading?.id }, "ECU simulation complete");
   res.status(201).json(serializeReading(reading!));
+});
+
+// GET /ecu/location - Vehicle GPS location and trail
+router.get("/ecu/location", async (req, res): Promise<void> => {
+  res.json(getGpsState());
 });
 
 // POST /ecu/ingest - Accept data from ESP32 or external device

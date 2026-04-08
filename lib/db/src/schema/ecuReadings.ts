@@ -13,6 +13,9 @@ export const EcuReadingZodSchema = z.object({
   oilPressure: z.number(),
   hasFault: z.boolean(),
   source: z.string(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  heading: z.number().optional(),
   createdAt: z.date(),
 });
 
@@ -37,6 +40,9 @@ const ecuReadingSchema = new Schema<IEcuReadingDocument>({
   oilPressure: { type: Number, required: true, default: 40 },
   hasFault: { type: Boolean, required: true, default: false },
   source: { type: String, required: true, default: "simulation" },
+  latitude: { type: Number, default: null },
+  longitude: { type: Number, default: null },
+  heading: { type: Number, default: null },
   createdAt: { type: Date, required: true, default: Date.now },
 });
 

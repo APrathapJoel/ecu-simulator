@@ -269,6 +269,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/HistoryStats"
 
+  /ecu/location:
+    get:
+      operationId: getVehicleLocation
+      tags: [ecu]
+      summary: Get current vehicle GPS location and trail
+      description: Returns current position, heading, speed and last 50 GPS trail points
+      responses:
+        "200":
+          description: Vehicle location data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleLocation"
+
 components:
   schemas:
     HealthStatus:
@@ -365,6 +379,16 @@ components:
         source:
           type: string
           description: "simulation or esp32 or external"
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+        heading:
+          type: number
+          nullable: true
+          description: Compass heading in degrees 0-360
         createdAt:
           type: string
           format: date-time
@@ -486,6 +510,52 @@ components:
         - max
         - avg
         - current
+
+    VehicleLocation:
+      type: object
+      properties:
+        current:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            heading:
+              type: number
+            speed:
+              type: number
+            updatedAt:
+              type: string
+              format: date-time
+          required:
+            - latitude
+            - longitude
+            - heading
+            - speed
+            - updatedAt
+        trail:
+          type: array
+          items:
+            type: object
+            properties:
+              latitude:
+                type: number
+              longitude:
+                type: number
+              speed:
+                type: number
+              createdAt:
+                type: string
+                format: date-time
+            required:
+              - latitude
+              - longitude
+              - speed
+              - createdAt
+      required:
+        - current
+        - trail
 
     ErrorResponse:
       type: object

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, LayoutDashboard, History, Settings, ServerCrash, Server, LogOut, Zap, ZapOff, User } from "lucide-react";
+import { Activity, LayoutDashboard, History, Settings, ServerCrash, Server, LogOut, Zap, ZapOff, User, MapPin } from "lucide-react";
 import { useHealthCheck, useSimulateEcuData, getGetCurrentEcuDataQueryKey, getGetVehicleStatusQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useRef, useState } from "react";
@@ -41,6 +41,7 @@ export function Sidebar() {
     { href: "/driver", label: "Driver View", icon: Activity },
     { href: "/mechanic", label: "Mechanic View", icon: LayoutDashboard },
     { href: "/history", label: "History Data", icon: History },
+    { href: "/tracking", label: "Tracking", icon: MapPin },
   ];
 
   return (

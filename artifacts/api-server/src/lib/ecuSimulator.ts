@@ -98,6 +98,72 @@ function randomFloat(min: number, max: number, decimals: number = 1): number {
   return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
 }
 
+// ─── GPS Simulation State ─────────────────────────────────────────────────────
+// Starts in New Delhi, India
+const GPS_ORIGIN = { lat: 28.6139, lng: 77.2090 };
+const EARTH_RADIUS_KM = 6371;
+
+interface GpsState {
+  latitude: number;
+  longitude: number;
+  heading: number; // 0-359 degrees (0=North, 90=East)
+  trail: Array<{ latitude: number; longitude: number; speed: number; createdAt: string }>;
+}
+
+const gpsState: GpsState = {
+  latitude: GPS_ORIGIN.lat,
+  longitude: GPS_ORIGIN.lng,
+  heading: randomInt(0, 359),
+  trail: [],
+};
+
+function updateGpsPosition(speedKmh: number): { latitude: number; longitude: number; heading: number } {
+  // Drift heading by ±15° every step (smooth curve, no sharp turns)
+  const headingDrift = randomInt(-15, 15);
+  gpsState.heading = (gpsState.heading + headingDrift + 360) % 360;
+
+  // Distance moved in this 5-second tick (speed in km/h → km per tick)
+  const tickSeconds = 5;
+  const distanceKm = (speedKmh / 3600) * tickSeconds;
+
+  // Convert heading to radians
+  const headingRad = (gpsState.heading * Math.PI) / 180;
+
+  // Calculate new lat/lng using flat-earth approximation (accurate for small distances)
+  const deltaLat = (distanceKm * Math.cos(headingRad)) / EARTH_RADIUS_KM * (180 / Math.PI);
+  const deltaLng = (distanceKm * Math.sin(headingRad)) / (EARTH_RADIUS_KM * Math.cos((gpsState.latitude * Math.PI) / 180)) * (180 / Math.PI);
+
+  gpsState.latitude = Math.round((gpsState.latitude + deltaLat) * 1e6) / 1e6;
+  gpsState.longitude = Math.round((gpsState.longitude + deltaLng) * 1e6) / 1e6;
+
+  return {
+    latitude: gpsState.latitude,
+    longitude: gpsState.longitude,
+    heading: gpsState.heading,
+  };
+}
+
+export function recordGpsTrail(speedKmh: number): { latitude: number; longitude: number; heading: number } {
+  const pos = updateGpsPosition(speedKmh);
+  // Keep last 100 trail points
+  gpsState.trail.push({ latitude: pos.latitude, longitude: pos.longitude, speed: speedKmh, createdAt: new Date().toISOString() });
+  if (gpsState.trail.length > 100) gpsState.trail.shift();
+  return pos;
+}
+
+export function getGpsState() {
+  return {
+    current: {
+      latitude: gpsState.latitude,
+      longitude: gpsState.longitude,
+      heading: gpsState.heading,
+      speed: gpsState.trail.length > 0 ? gpsState.trail[gpsState.trail.length - 1].speed : 0,
+      updatedAt: gpsState.trail.length > 0 ? gpsState.trail[gpsState.trail.length - 1].createdAt : new Date().toISOString(),
+    },
+    trail: [...gpsState.trail].slice(-50),
+  };
+}
+
 export function generateSimulatedSensorData() {
   // Pick a realistic driving scenario with weighted probability
   const roll = Math.random();

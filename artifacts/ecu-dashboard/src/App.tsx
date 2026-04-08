@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import DriverView from "@/pages/driver-view";
 import MechanicView from "@/pages/mechanic-view";
 import HistoryView from "@/pages/history-view";
+import TrackingView from "@/pages/tracking-view";
 import LoginView from "@/pages/login-view";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
@@ -47,6 +48,9 @@ function Router() {
       </Route>
       <Route path="/history">
         <ProtectedRoute component={HistoryView} />
+      </Route>
+      <Route path="/tracking">
+        <ProtectedRoute component={TrackingView} />
       </Route>
       <Route component={NotFound} />
     </Switch>

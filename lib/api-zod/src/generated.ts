@@ -71,6 +71,9 @@ export const getCurrentEcuDataResponse = zod.object({
   "oilPressure": zod.number(),
   "hasFault": zod.boolean(),
   "source": zod.string().describe('simulation or esp32 or external'),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "heading": zod.number().nullish().describe('Compass heading in degrees 0-360'),
   "createdAt": zod.string().datetime({})
 })
 
@@ -114,6 +117,9 @@ export const getVehicleStatusResponse = zod.object({
   "oilPressure": zod.number(),
   "hasFault": zod.boolean(),
   "source": zod.string().describe('simulation or esp32 or external'),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "heading": zod.number().nullish().describe('Compass heading in degrees 0-360'),
   "createdAt": zod.string().datetime({})
 })
 })
@@ -183,6 +189,9 @@ export const getHistoryResponseItem = zod.object({
   "oilPressure": zod.number(),
   "hasFault": zod.boolean(),
   "source": zod.string().describe('simulation or esp32 or external'),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "heading": zod.number().nullish().describe('Compass heading in degrees 0-360'),
   "createdAt": zod.string().datetime({})
 })
 export const getHistoryResponse = zod.array(getHistoryResponseItem)
@@ -223,6 +232,27 @@ export const getHistoryStatsResponse = zod.object({
   "avg": zod.number(),
   "current": zod.number()
 })
+})
+
+
+/**
+ * Returns current position, heading, speed and last 50 GPS trail points
+ * @summary Get current vehicle GPS location and trail
+ */
+export const getVehicleLocationResponse = zod.object({
+  "current": zod.object({
+  "latitude": zod.number(),
+  "longitude": zod.number(),
+  "heading": zod.number(),
+  "speed": zod.number(),
+  "updatedAt": zod.string().datetime({})
+}),
+  "trail": zod.array(zod.object({
+  "latitude": zod.number(),
+  "longitude": zod.number(),
+  "speed": zod.number(),
+  "createdAt": zod.string().datetime({})
+}))
 })
 
 
