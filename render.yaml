@@ -11,6 +11,12 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
+      - key: DASHBOARD_URL
+        fromService:
+          type: web
+          name: ecu-dashboard
+          property: host
+        # Render wires this as the hostname — we prepend https:// in app.ts
 
   - type: web
     name: ecu-dashboard
