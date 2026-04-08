@@ -1,8 +1,9 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetMe, useRegister, useLogin, useLogout } from "@workspace/api-client-react";
+import { useGetMe, useRegister, useLogin, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import type { User } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 type AuthContextType = {
   user: User | null;
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: user, isLoading, error } = useGetMe();
 
@@ -42,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useLogin({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["getMe"] });
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         toast({
           title: "Access Granted",
           description: "System authentication successful.",
@@ -61,7 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutMutation = useLogout({
     mutation: {
       onSuccess: () => {
-        queryClient.setQueryData(["getMe"], null);
+        // Clear the cached user data with the correct query key, then redirect
+        queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
+        queryClient.clear();
+        setLocation("/login");
       },
     },
   });
