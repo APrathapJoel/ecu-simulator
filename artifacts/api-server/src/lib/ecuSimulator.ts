@@ -99,8 +99,6 @@ function randomFloat(min: number, max: number, decimals: number = 1): number {
 }
 
 // ─── GPS Simulation State ─────────────────────────────────────────────────────
-// Starts in New Delhi, India
-const GPS_ORIGIN = { lat: 28.6139, lng: 77.2090 };
 const EARTH_RADIUS_KM = 6371;
 
 interface GpsState {
@@ -111,25 +109,27 @@ interface GpsState {
 }
 
 const gpsState: GpsState = {
-  latitude: GPS_ORIGIN.lat,
-  longitude: GPS_ORIGIN.lng,
+  latitude: 28.6139, // default: New Delhi (overridden by browser geolocation)
+  longitude: 77.2090,
   heading: randomInt(0, 359),
   trail: [],
 };
 
+export function resetGpsOrigin(latitude: number, longitude: number): void {
+  gpsState.latitude = latitude;
+  gpsState.longitude = longitude;
+  gpsState.heading = randomInt(0, 359);
+  gpsState.trail = []; // clear old trail so map starts fresh at new location
+}
+
 function updateGpsPosition(speedKmh: number): { latitude: number; longitude: number; heading: number } {
-  // Drift heading by ±15° every step (smooth curve, no sharp turns)
   const headingDrift = randomInt(-15, 15);
   gpsState.heading = (gpsState.heading + headingDrift + 360) % 360;
 
-  // Distance moved in this 5-second tick (speed in km/h → km per tick)
   const tickSeconds = 5;
   const distanceKm = (speedKmh / 3600) * tickSeconds;
-
-  // Convert heading to radians
   const headingRad = (gpsState.heading * Math.PI) / 180;
 
-  // Calculate new lat/lng using flat-earth approximation (accurate for small distances)
   const deltaLat = (distanceKm * Math.cos(headingRad)) / EARTH_RADIUS_KM * (180 / Math.PI);
   const deltaLng = (distanceKm * Math.sin(headingRad)) / (EARTH_RADIUS_KM * Math.cos((gpsState.latitude * Math.PI) / 180)) * (180 / Math.PI);
 
@@ -145,7 +145,6 @@ function updateGpsPosition(speedKmh: number): { latitude: number; longitude: num
 
 export function recordGpsTrail(speedKmh: number): { latitude: number; longitude: number; heading: number } {
   const pos = updateGpsPosition(speedKmh);
-  // Keep last 100 trail points
   gpsState.trail.push({ latitude: pos.latitude, longitude: pos.longitude, speed: speedKmh, createdAt: new Date().toISOString() });
   if (gpsState.trail.length > 100) gpsState.trail.shift();
   return pos;

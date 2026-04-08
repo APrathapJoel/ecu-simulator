@@ -14,6 +14,7 @@ import {
   serializeDtc,
   recordGpsTrail,
   getGpsState,
+  resetGpsOrigin,
 } from "../lib/ecuSimulator";
 import { isDatabaseConnected } from "@workspace/db";
 
@@ -78,6 +79,22 @@ router.post("/ecu/simulate", async (req, res): Promise<void> => {
 // GET /ecu/location - Vehicle GPS location and trail
 router.get("/ecu/location", async (req, res): Promise<void> => {
   res.json(getGpsState());
+});
+
+// POST /ecu/location/reset - Set simulation origin to real-world coordinates
+router.post("/ecu/location/reset", async (req, res): Promise<void> => {
+  const { latitude, longitude } = req.body;
+  if (
+    typeof latitude !== "number" || typeof longitude !== "number" ||
+    latitude < -90 || latitude > 90 ||
+    longitude < -180 || longitude > 180
+  ) {
+    res.status(400).json({ error: "Invalid coordinates. latitude must be -90 to 90, longitude -180 to 180." });
+    return;
+  }
+  resetGpsOrigin(latitude, longitude);
+  req.log.info({ latitude, longitude }, "GPS origin reset to user location");
+  res.status(200).json({ message: "GPS origin updated", latitude, longitude });
 });
 
 // POST /ecu/ingest - Accept data from ESP32 or external device

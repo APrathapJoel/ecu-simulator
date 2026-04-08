@@ -1,12 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetVehicleLocation, useGetCurrentEcuData, getGetVehicleLocationQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Navigation, Gauge, Thermometer, Zap, Droplets, MapPin, Clock } from "lucide-react";
+import { Navigation, Gauge, Thermometer, Zap, Droplets, MapPin, Clock, LocateFixed, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import axios from "axios";
 
-// Leaflet CSS must be loaded — injected via <link> to avoid bundler issues
+// Inject Leaflet CSS once
 const leafletCssId = "leaflet-css";
 if (!document.getElementById(leafletCssId)) {
   const link = document.createElement("link");
@@ -37,12 +38,15 @@ function calcDistanceKm(trail: Array<{ latitude: number; longitude: number }>): 
   return Math.round(total * 100) / 100;
 }
 
+type GeoStatus = "requesting" | "granted" | "denied" | "unavailable";
+
 export default function TrackingView() {
   const queryClient = useQueryClient();
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const polylineRef = useRef<any>(null);
+  const [geoStatus, setGeoStatus] = useState<GeoStatus>("requesting");
 
   const { data: locationRes } = useGetVehicleLocation();
   const { data: ecuRes } = useGetCurrentEcuData();
@@ -57,6 +61,31 @@ export default function TrackingView() {
     }, 5000);
     return () => clearInterval(interval);
   }, [queryClient]);
+
+  // Request browser geolocation and reset the backend GPS origin
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGeoStatus("unavailable");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        try {
+          await axios.post("/api/ecu/location/reset", { latitude, longitude });
+          setGeoStatus("granted");
+          // Re-center the map to real location if already initialized
+          if (leafletMapRef.current) {
+            leafletMapRef.current.setView([latitude, longitude], 15);
+          }
+        } catch {
+          setGeoStatus("denied");
+        }
+      },
+      () => setGeoStatus("denied"),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }, []);
 
   // Initialize Leaflet map once
   useEffect(() => {
@@ -154,9 +183,26 @@ export default function TrackingView() {
         <div className="xl:col-span-2">
           <Card className="overflow-hidden border-border">
             <CardHeader className="pb-0 pt-4 px-4">
-              <CardTitle className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <CardTitle className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                Live Map — New Delhi Region
+                Live Map
+                <span className="ml-auto">
+                  {geoStatus === "requesting" && (
+                    <Badge variant="outline" className="text-[10px] font-mono animate-pulse">
+                      <LocateFixed className="w-3 h-3 mr-1" />Locating...
+                    </Badge>
+                  )}
+                  {geoStatus === "granted" && (
+                    <Badge className="text-[10px] font-mono bg-green-500/20 text-green-400 border-0">
+                      <LocateFixed className="w-3 h-3 mr-1" />Your Location
+                    </Badge>
+                  )}
+                  {(geoStatus === "denied" || geoStatus === "unavailable") && (
+                    <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground">
+                      <AlertCircle className="w-3 h-3 mr-1" />Default Region
+                    </Badge>
+                  )}
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0 mt-3">
