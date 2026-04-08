@@ -4,22 +4,56 @@ import { registerBody, loginBody } from "@workspace/api-zod";
 import crypto from "crypto";
 import util from "util";
 import bcrypt from "bcryptjs";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const randomBytes = util.promisify(crypto.randomBytes);
-
 const router: IRouter = Router();
 
-// IN-MEMORY FALLBACK FOR OFFLINE DEVELOPMENT
+// ─── File-backed in-memory store for offline/local development ───────────────
+// Persists user accounts and session tokens across server restarts.
+// The file is gitignored so it never gets committed.
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DB_FILE = path.resolve(__dirname, "../../../../.memdb.json");
+
 interface MemUser {
   _id: string;
   email: string;
-  createdAt: Date;
-  otpCode?: string | null;
-  otpExpires?: Date | null;
-  sessionToken?: string | null;
+  passwordHash: string;
+  sessionToken: string | null;
+  createdAt: string; // ISO string for JSON serialisation
 }
-const memUsers = new Map<string, MemUser>();
-let tempIdCounter = 1;
+
+interface MemDb {
+  users: Record<string, MemUser>; // keyed by email
+  sessions: Record<string, string>; // sessionToken → email
+}
+
+function loadDb(): MemDb {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch {
+    // corrupted file — start fresh
+  }
+  return { users: {}, sessions: {} };
+}
+
+function saveDb(db: MemDb): void {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[memdb] Failed to persist local DB:", e);
+  }
+}
+
+// Load on startup — users and sessions survive server restarts
+let memDb = loadDb();
+let tempIdCounter = Object.keys(memDb.users).length + 1;
 
 // POST /auth/register
 router.post("/auth/register", async (req: Request, res: Response) => {
@@ -34,12 +68,18 @@ router.post("/auth/register", async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     if (!isDatabaseConnected()) {
-      if (memUsers.has(email)) {
+      if (memDb.users[email]) {
         res.status(409).json({ error: "User already exists" });
         return;
       }
-      let user = { _id: "mem_" + tempIdCounter++, email, passwordHash, createdAt: new Date() };
-      memUsers.set(email, user);
+      memDb.users[email] = {
+        _id: "mem_" + tempIdCounter++,
+        email,
+        passwordHash,
+        sessionToken: null,
+        createdAt: new Date().toISOString(),
+      };
+      saveDb(memDb);
     } else {
       let user = await UserModel.findOne({ email });
       if (user) {
@@ -68,13 +108,46 @@ router.post("/auth/login", async (req: Request, res: Response) => {
 
     const { email, password } = parsed.data;
 
-    let user;
     if (!isDatabaseConnected()) {
-      user = memUsers.get(email);
-    } else {
-      user = await UserModel.findOne({ email });
+      const user = memDb.users[email];
+      if (!user) {
+        res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+
+      // Invalidate old session if exists
+      if (user.sessionToken) {
+        delete memDb.sessions[user.sessionToken];
+      }
+
+      const sessionToken = (await randomBytes(32)).toString("hex");
+      user.sessionToken = sessionToken;
+      memDb.sessions[sessionToken] = email;
+      saveDb(memDb);
+
+      res.cookie("sessionToken", sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: "/",
+      });
+
+      res.status(200).json({
+        id: user._id,
+        email: user.email,
+        createdAt: user.createdAt,
+      });
+      return;
     }
 
+    // MongoDB path
+    const user = await UserModel.findOne({ email });
     if (!user) {
       res.status(401).json({ error: "Invalid credentials" });
       return;
@@ -88,13 +161,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
 
     const sessionToken = (await randomBytes(32)).toString("hex");
     user.sessionToken = sessionToken;
-
-    if (!isDatabaseConnected()) {
-      memUsers.set(email, user);
-      memUsers.set(sessionToken, user);
-    } else {
-      await user.save();
-    }
+    await user.save();
 
     res.cookie("sessionToken", sessionToken, {
       httpOnly: true,
@@ -120,17 +187,17 @@ router.post("/auth/logout", async (req: Request, res: Response) => {
     const sessionToken = req.cookies.sessionToken;
     if (sessionToken) {
       if (!isDatabaseConnected()) {
-        const u = memUsers.get(sessionToken);
-        if (u) {
-          if (u.email) memUsers.delete(u.email);
-          u.sessionToken = null;
-          memUsers.delete(sessionToken);
+        const email = memDb.sessions[sessionToken];
+        if (email && memDb.users[email]) {
+          memDb.users[email].sessionToken = null;
         }
+        delete memDb.sessions[sessionToken];
+        saveDb(memDb);
       } else {
         await UserModel.updateOne({ sessionToken }, { $set: { sessionToken: null } });
       }
     }
-  } catch (e) { 
+  } catch (e) {
     req.log.error({ err: e }, "Log out error");
   }
   res.clearCookie("sessionToken", { path: "/" });
@@ -146,13 +213,22 @@ router.get("/auth/me", async (req: Request, res: Response) => {
       return;
     }
 
-    let user;
     if (!isDatabaseConnected()) {
-      user = memUsers.get(sessionToken);
-    } else {
-      user = await UserModel.findOne({ sessionToken });
+      const email = memDb.sessions[sessionToken];
+      const user = email ? memDb.users[email] : undefined;
+      if (!user) {
+        res.status(401).json({ error: "Invalid session" });
+        return;
+      }
+      res.status(200).json({
+        id: user._id,
+        email: user.email,
+        createdAt: user.createdAt,
+      });
+      return;
     }
 
+    const user = await UserModel.findOne({ sessionToken });
     if (!user) {
       res.status(401).json({ error: "Invalid session" });
       return;
