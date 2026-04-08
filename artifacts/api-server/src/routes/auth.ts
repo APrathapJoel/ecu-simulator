@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { UserModel, isDatabaseConnected } from "@workspace/db";
 import { registerBody, loginBody } from "@workspace/api-zod";
+import { enhancedRegisterBody, enhancedLoginBody, sanitizeInput } from "../lib/validation";
 import crypto from "crypto";
 import util from "util";
 import bcrypt from "bcryptjs";
@@ -10,6 +12,30 @@ import { fileURLToPath } from "url";
 
 const randomBytes = util.promisify(crypto.randomBytes);
 const router: IRouter = Router();
+
+// Rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: {
+    error: "Too many authentication attempts, please try again later",
+    retryAfter: "15 minutes"
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Less strict rate limiting for registration
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // Limit each IP to 3 registration attempts per hour
+  message: {
+    error: "Too many registration attempts, please try again later",
+    retryAfter: "1 hour"
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ─── File-backed in-memory store for offline/local development ───────────────
 // Persists user accounts and session tokens across server restarts.
@@ -56,11 +82,15 @@ let memDb = loadDb();
 let tempIdCounter = Object.keys(memDb.users).length + 1;
 
 // POST /auth/register
-router.post("/auth/register", async (req: Request, res: Response) => {
+router.post("/auth/register", registerLimiter, async (req: Request, res: Response) => {
   try {
-    const parsed = registerBody.safeParse(req.body);
+    // Use enhanced validation for better security
+    const parsed = enhancedRegisterBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ 
+        error: "Validation failed",
+        details: parsed.error.issues[0].message
+      });
       return;
     }
 
@@ -68,6 +98,15 @@ router.post("/auth/register", async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     if (!isDatabaseConnected()) {
+      if (process.env.NODE_ENV === "production") {
+        res.status(503).json({ 
+          error: "Database unavailable. Please ensure MONGODB_URI is configured.",
+          code: "DB_UNAVAILABLE"
+        });
+        return;
+      }
+      
+      // Local development fallback
       if (memDb.users[email]) {
         res.status(409).json({ error: "User already exists" });
         return;
@@ -98,17 +137,30 @@ router.post("/auth/register", async (req: Request, res: Response) => {
 });
 
 // POST /auth/login
-router.post("/auth/login", async (req: Request, res: Response) => {
+router.post("/auth/login", authLimiter, async (req: Request, res: Response) => {
   try {
-    const parsed = loginBody.safeParse(req.body);
+    // Use enhanced validation for better security
+    const parsed = enhancedLoginBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ 
+        error: "Validation failed",
+        details: parsed.error.issues[0].message
+      });
       return;
     }
 
     const { email, password } = parsed.data;
 
     if (!isDatabaseConnected()) {
+      if (process.env.NODE_ENV === "production") {
+        res.status(503).json({ 
+          error: "Database unavailable. Please ensure MONGODB_URI is configured.",
+          code: "DB_UNAVAILABLE"
+        });
+        return;
+      }
+
+      // Local development fallback
       const user = memDb.users[email];
       if (!user) {
         res.status(401).json({ error: "Invalid credentials" });
@@ -167,6 +219,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     res.cookie("sessionToken", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: "/",
     });
@@ -188,12 +241,17 @@ router.post("/auth/logout", async (req: Request, res: Response) => {
     const sessionToken = req.cookies.sessionToken;
     if (sessionToken) {
       if (!isDatabaseConnected()) {
-        const email = memDb.sessions[sessionToken];
-        if (email && memDb.users[email]) {
-          memDb.users[email].sessionToken = null;
+        if (process.env.NODE_ENV === "production") {
+          req.log.warn("Logout attempted in production without database connection");
+        } else {
+          // Local development fallback
+          const email = memDb.sessions[sessionToken];
+          if (email && memDb.users[email]) {
+            memDb.users[email].sessionToken = null;
+          }
+          delete memDb.sessions[sessionToken];
+          saveDb(memDb);
         }
-        delete memDb.sessions[sessionToken];
-        saveDb(memDb);
       } else {
         await UserModel.updateOne({ sessionToken }, { $set: { sessionToken: null } });
       }
@@ -215,6 +273,15 @@ router.get("/auth/me", async (req: Request, res: Response) => {
     }
 
     if (!isDatabaseConnected()) {
+      if (process.env.NODE_ENV === "production") {
+        res.status(503).json({ 
+          error: "Database unavailable. Please ensure MONGODB_URI is configured.",
+          code: "DB_UNAVAILABLE"
+        });
+        return;
+      }
+
+      // Local development fallback
       const email = memDb.sessions[sessionToken];
       const user = email ? memDb.users[email] : undefined;
       if (!user) {

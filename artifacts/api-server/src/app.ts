@@ -8,17 +8,14 @@ import cookieParser from "cookie-parser";
 
 const app: Express = express();
 
-// Allow the dashboard origin to send cookies (needed for session auth on Render)
-const dashboardHost = process.env.DASHBOARD_URL;
-const dashboardOrigin = dashboardHost ? `https://${dashboardHost}` : undefined;
+// Reflect the requesting origin — works with credentials on any domain (Render, localhost, etc.)
 app.use(
   cors({
-    origin: dashboardOrigin
-      ? [dashboardOrigin, "http://localhost:5173"]
-      : true, // allow all in local dev
+    origin: true,
     credentials: true,
   })
 );
+
 
 app.use(
   pinoHttp({
